@@ -6,6 +6,37 @@ library(MuMIn)
 library(influence.ME)
 library(arm)
 library(msm)
+library(magrittr)
+
+#Import SL and OE values from literature
+oe<- read.csv(file="~/Dropbox (Instream)/Projects/TWN Indian River/Data/IFR Cleaned Data/Observer_Efficiency.csv",header=T, stringsAsFactor=T)
+sl<- read.csv(file="~/Dropbox (Instream)/Projects/TWN Indian River/Data/IFR Cleaned Data/Survey_Life.csv",header=T, stringsAsFactor=T)
+
+chsl<- filter(sl,spp=="chum")
+
+pisl<- filter(sl,spp=="pink")
+
+cosl<- filter(sl,spp=="coho")
+
+#Function to generate data from specified mean and sd from OE data
+oe_dist <- ddply(oe, c("stream"), function(x){ 
+  dist <- x$mean+x$sd*scale(rnorm(200))
+  data.frame(dist)
+})
+
+#Create mean and sd for OE spp-specific SL below
+mean_oe<- mean(oe_dist$dist)
+sd_oe<- sd(oe_dist$dist)
+
+mean_chsl<- mean(chsl$x)
+sd_chsl<- sd(chsl$x)
+
+mean_cosl<- mean(cosl$x)
+sd_cosl<- sd(cosl$x)
+
+mean_pisl<- mean(pisl$x)
+sd_pisl<- sd(pisl$x)
+
 
 makeTransparent<-function(someColor, alpha=75)
 {
@@ -16,15 +47,19 @@ makeTransparent<-function(someColor, alpha=75)
 
 d1<-read.csv(file="~/Dropbox (Instream)/Projects/TWN Indian River/Data/IFR Cleaned Data/ir_salmon_esc_coupled_2013_15.csv",header=T, stringsAsFactor=T)
 
-#Select year and species
+#Select species/year
 
-yr<- dplyr::filter(d1, year == 2013)
+ch13<- dplyr::filter(d1, species == "chum" & year == 2013)
+co13<- dplyr::filter(d1, species == "coho" & year == 2013)
+pi13<- dplyr::filter(d1, species == "pink" & year == 2013)
+ch14<- dplyr::filter(d1, species == "chum" & year == 2014)
+co14<- dplyr::filter(d1, species == "coho" & year == 2014)
 
-sp<- dplyr::filter(yr, species == "chum")
+#START HERE: NEED TO CREATE FUNCITON THAT AUTOMATES STRPTIME FOR EACH SPP/YEAR COMBO AND CALLS OE AND SPP-SPECIFIC SL ESTIMATES
 
 #calculate julian days, must add 365 to any days in 2014 (otherwise will be assigned values prior to 2013 days)
-jday<-strptime(sp$date, "%Y-%m-%d")
-sp$jday<- ifelse(jday$year==113,jday$yday,jday$yday+365)
+strptime(sp$date, "%Y-%m-%d")
+sp$jday<- ifelse(jday$yday<150,jday$yday,jday$yday+365) %>%
 sp<-sp[order(sp$year, sp$jday),]
 
 #Create object with first survey date equalling 0
@@ -33,9 +68,12 @@ day<-ddply(sp, c("year"), function(x){
   data.frame(day)
 })
 
-#Cbind into spo dataset
-
+#Cbind julian day into spp dataset
 auc<- cbind(sp,day$day)
+names(auc)[[9]]<- c("day")
+
+
+
 
 #########################################################################################################################
 #Apply the modeling from Millar et al 2012 CJFAS - Simple estimators of salmonid escapement and its variance using a new area-under-the-curve method.
@@ -47,7 +85,7 @@ auc<- cbind(sp,day$day)
 
 #Fit equation (8), and extract coefficients
 #beta0, beta1 and beta2 
-abund.est<-ddply(d, c("year"), .progress = progress_text(char = "."), function(y) {
+abund.est<-ddply(auc, c("year"), .progress = progress_text(char = "."), function(y) {
 g=glm(count~day+I(day^2), data=y, family=quasipoisson); g #subset(z, year==2005)
 x=coef(g)
 #Can use equation 8 to get predicted counts from model by applying the following equation y1=c[1]+(c[2]*days)+c[3]*(days^2); y<-exp(y1)
