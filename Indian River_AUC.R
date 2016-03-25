@@ -12,6 +12,14 @@ library(magrittr)
 oe<- read.csv(file="~/Dropbox (Instream)/Projects/TWN Indian River/Data/IFR Cleaned Data/Observer_Efficiency.csv",header=T, stringsAsFactor=T)
 sl<- read.csv(file="~/Dropbox (Instream)/Projects/TWN Indian River/Data/IFR Cleaned Data/Survey_Life.csv",header=T, stringsAsFactor=T)
 
+#detach(package:plyr)
+
+#str(sl)
+
+#sl1<- sl %>%
+#  group_by(spp) %>%
+#  dplyr::mutate(mean_sl=mean(x),sd_sl=sd(x),n_sl=count(x))
+
 #Select SL values for each species
 chsl<- filter(sl,spp=="chum")
 
@@ -21,7 +29,7 @@ cosl<- filter(sl,spp=="coho")
 
 #Function to generate data from specified mean and sd from OE data
 oe_dist <- ddply(oe, c("stream"), function(x){ 
-  dist <- x$mean+x$sd*scale(rnorm(200))
+  dist <- x$mean+x$sd*scale(rnorm(5))
   data.frame(dist)
 })
 
@@ -29,18 +37,22 @@ oe_dist <- ddply(oe, c("stream"), function(x){
 mean_oe<- mean(oe_dist$dist)
 sd_oe<- sd(oe_dist$dist)
 n_oe<- nrow(oe)
+se_oe<- sd_oe/sqrt(n_oe)
 
 mean_chsl<- mean(chsl$x)
 sd_chsl<- sd(chsl$x)
 n_chsl<- nrow(chsl)
+se_chsl<- sd_chsl/sqrt(n_chsl)
 
 mean_cosl<- mean(cosl$x)
 sd_cosl<- sd(cosl$x)
 n_cosl<- nrow(cosl)
+se_cosl<- sd_cosl/sqrt(n_cosl)
 
 mean_pisl<- mean(pisl$x)
 sd_pisl<- sd(pisl$x)
 n_pisl<- nrow(pisl)
+se_pisl<- sd_pisl/sqrt(n_pisl)
 
 #Read in salmon count data
 d1<-read.csv(file="~/Dropbox (Instream)/Projects/TWN Indian River/Data/IFR Cleaned Data/ir_salmon_esc_coupled_2013_15.csv",header=T, stringsAsFactor=T)
@@ -73,7 +85,7 @@ names(auc)[[9]]<- c("day")
 
 #Fit equation (8), and extract coefficients
 #beta0, beta1 and beta2 
-abund.est<-ddply(auc, c("year"), .progress = progress_text(char = "."), function(y) {
+esc_dat<-ddply(auc, c("year", "species"), .progress = progress_text(char = "."), function(y) {
 g=glm(count~day+I(day^2), data=y, family=quasipoisson); g #subset(z, year==2005)
 x=coef(g)
 
@@ -86,113 +98,105 @@ x=coef(g)
 # I used the mean observer efficiency for all years so that they are comparable. This might not be the best way to do it.
 # Alternatively we could use the year specific observer efficiency. 
 # Either method should be fine since it won't change the estimates all that much, they are still going to be low.
-uncertainty <- data.frame("year" = c(2012, 2013, 2014), 
-	"survey.life" = c(10, 11, 16), 
-	"observer.efficiency" = c(0.58, 0.28, 0.28))
-sl    <- mean(uncertainty$survey.life)
-oe    <- mean(uncertainty$observer.efficiency)
-sl.se <- sd(uncertainty$survey.life) / (sqrt(dim(uncertainty)[1]))
-oe.se <- sd(uncertainty$observer.efficiency) / (sqrt(dim(uncertainty)[1]))
+
+#start here to apply spp-specific oe and sl esitaimtes to each model
 
 #Apply equation (9) to obtain estimated fish-days 
 f = sqrt(-pi / x[3]) * exp(x[1] - x[2] ^ 2 / (4 * x[3]))
 
 # I used year specific information on oe and sl when available. 
-# The lowest observed oe was applied to 2014 because of poor water clarity.
+# 
 
-if(y$year[1]==2012){
-	oe <- 0.58
-	sl <- 10
+oe<- mean_oe
+
+if(y$species[1]=="chum"){
+	sl <- mean_chsl
+	se_sl <- se_chsl
 	e = f / (sl * oe)
-		f.se=deltamethod(~sqrt(-pi/x3)*exp(x1-x2^2/(4*x3)), mean=x, cov=vcov(g))
-	e.se=deltamethod(~x1/(x2*x3), mean=c(F,10,0.58), cov=diag(c(f.se,sl.se,oe.se))^2)
+		se_f=deltamethod(~sqrt(-pi/x3)*exp(x1-x2^2/(4*x3)), mean=x, cov=vcov(g))
+		se_e=deltamethod(~x1/(x2*x3), mean=c(F,sl,oe), cov=diag(c(se_f,se_sl,se_oe))^2)
 }
 
-if(y$year[1]==2013){
-	oe <- 0.28
-	sl <- 11
-	e = f / (sl * oe)
-	f.se=deltamethod(~sqrt(-pi/x3)*exp(x1-x2^2/(4*x3)), mean=x, cov=vcov(g))
-	e.se=deltamethod(~x1/(x2*x3), mean=c(F,11,0.28), cov=diag(c(f.se,sl.se,oe.se))^2)
+if(y$species[1]=="coho"){
+  sl <- mean_cosl
+  se_sl <- se_cosl
+  e = f / (sl * oe)
+  se_f=deltamethod(~sqrt(-pi/x3)*exp(x1-x2^2/(4*x3)), mean=x, cov=vcov(g))
+  se_e=deltamethod(~x1/(x2*x3), mean=c(F,sl,oe), cov=diag(c(se_f,se_sl,se_oe))^2)
 }
 
-if(y$year[1]==2014){
-	oe <- 0.28
-	sl <- 12
-	e = f / (sl * oe)
-	f.se=deltamethod(~sqrt(-pi/x3)*exp(x1-x2^2/(4*x3)), mean=x, cov=vcov(g))
-	e.se=deltamethod(~x1/(x2*x3), mean=c(F,12,0.28), cov=diag(c(f.se,sl.se,oe.se))^2)
+if(y$species[1]=="pink"){
+  sl <- mean_pisl
+  se_sl <- se_pisl
+  e = f / (sl * oe)
+  se_f=deltamethod(~sqrt(-pi/x3)*exp(x1-x2^2/(4*x3)), mean=x, cov=vcov(g))
+  se_e=deltamethod(~x1/(x2*x3), mean=c(F,sl,oe), cov=diag(c(se_f,se_sl,se_oe))^2)
 }
-
-else
-	e = f / (sl * oe)
-	f.se=deltamethod(~sqrt(-pi/x3)*exp(x1-x2^2/(4*x3)), mean=x, cov=vcov(g))
-	e.se=deltamethod(~x1/(x2*x3), mean=c(F,sl,oe), cov=diag(c(f.se,sl.se,oe.se))^2)
 
 data.frame("oe" = round(oe, 3),
-	"oe.se" = round(oe.se, 3),
+	"se_oe" = round(se_oe, 3),
 	"sl" = round(sl, 1),
-	"sl.se" = round(sl.se, 2),
+	"se_sl" = round(se_sl, 2),
 	"escapement"=round(e, 0), 
-	"escapement.se"=round(e.se, 0), 
-	method="visual survey", 
-	"lower95CI"=round(e-(1.96*e.se), 0), 
-	"upper95CI"=round(e+(1.96*e.se), 0))
+	"escapement.se"=round(se_e, 0),
+	"lower95CI"=round(e-(1.96*se_e), 0), 
+	"upper95CI"=round(e+(1.96*se_e), 0))
 })
 
-abund.est
-#Add in the fence data. We assume no error with the fence numbers.
-Zfc<-subset(Z2, fence.count==1)
+esc_dat
 
-fc<-data.frame("year"=Zfc$year,
-	"oe" = NA,
-	"oe.se" = NA,
-	"sl" = NA,
-	"sl.se" = NA,
-	"escapement"=Zfc$adult.live, 
-	"escapement.se"=0, 
-	method="fence count", 
-	"lower95CI"=round(Zfc$adult.live, 0), 
-	"upper95CI"=round(Zfc$adult.live, 0))
+write.csv(x=esc_dat, file="~/Dropbox (Instream)/Projects/TWN Indian River/4 - Figures & Tables/escapement_summary.csv")
 
-esc.data<-rbind(fc, abund.est)
-esc.data[is.na(esc.data)] <- NA
-esc.data
-write.csv(x=esc.data, file="/Users/doug/Documents/Instream/Projects/BRGMON-3 - Bridge River/Tables/Bridge River Chinook AUC Estimates - Variable oe and sl.csv")
 
-min.jday<-min(d$jday)
-max.jday<-max(d$jday) 
+auc$date <- as.POSIXct(as.character(auc$date), format = "%Y-%m-%d")
 
-makeTransparent<-function(someColor, alpha=75)
-{
-  newColor<-col2rgb(someColor)
-  apply(newColor, 2, function(curcoldata){rgb(red=curcoldata[1], green=curcoldata[2],
-                                              blue=curcoldata[3],alpha=alpha, maxColorValue=255)})
-}
+plot_fit <- function(dat, sp){
+  
+  #auc_dat <- dplyr::filter(dat, species == sp)
+  auc_dat <- dplyr::filter(auc, species == "chum")
+  
+#fig_name<-paste("~/Dropbox (Instream)/Projects/TWN Indian River/4 - Figures & Tables/ir_auc_model_fit", sp, ".png")
+#png(fig_name, height=1200, width=1200)
+quartz()
+par(mfrow=c(2,1), mar=c(1.5,1.5,1,1.5), oma=c(4,4,0,0), cex=1.5)
 
-fig.name<-"/Users/doug/Documents/Instream/Projects/BRGMON-3 - Bridge River/Figures/Bridge Chinook - Count by Day with Model Fit - Zeros Added.png"
-png(fig.name, height=1200, width=1200)
-par(mfrow=c(5,3), mar=c(1.5,1.5,1,1.5), oma=c(4,4,0,0), cex=1.5)
-d_ply(d, c("year"), function(x){
+
+
+d_ply(auc_dat, c("year"), function(x){
 	g <- glm(count~day+I(day^2), data=x, family=quasipoisson); g; c<-coef(g)
 	days<-seq(from=range(x$day)[1], to=range(x$day)[2])
-	y1=c[1]+(c[2]*days)+c[3]*(days^2); y<-exp(y1) #from equation 8, Millar et al. 2012
+	y1=c[1]+(c[2]*days)+c[3]*(days^2)
+	y<-exp(y1) #from equation 8, Millar et al. 2012
 
 	y_limit<-as.numeric(ifelse(max(x$count)>=max(y), max(x$count), max(y)))
-	plot(x$count~x$jday, axes=FALSE, typ="b", xlab="", ylab="", pch=1, cex=2, lwd=2, col="blue", 
-	ylim=c(0, y_limit*1.2), xlim=c(min.jday, max.jday))
 
-	lines(y=y, x=days+min(x$jday), col=makeTransparent("black", 175), lwd=2.5)
+	
+	plot(x$count~x$jday, axes=FALSE, typ="b", xlab="", ylab="", pch=1, cex=2, lwd=2, col="blue",
+	     ylim=c(0, y_limit*1.2), xlim=c(min(auc_dat$jday), max(auc_dat$jday)))
 
-	axis(1, cex.axis=1.25)
+	lines(y=y, x=days+min(x$jday), col="#00000050", lwd=2.5)
+
+	
+	r <- as.Date(range(auc_dat$date))
+	#axis.POSIXct(1, at = seq(r[1], r[2], by = "weeks"), format = "%b %d", cex.axis=1.25)
+	#axis.Date(1, at = seq(r[1], r[2], by = "weeks"), cex.axis=1.25)
+	
+	axis(1, at = seq(min(auc_dat$jday), max(auc_dat$jday), by = 7), labels = seq(r[1], r[2], by = "weeks", format = "%b %d"), cex.axis=1.25)
+	
 	mtext(x$year[1], side=3, adj=0.02, line=-1, cex=1.5)
 	axis(side=2, las=1, cex.axis=1.25)
 	box()
 	})
-	mtext("Chinook spawner count (Yalakom to Dam)", side=2, line=2, outer=TRUE, cex=3)
+
+	mtext(paste(sp, "spawner count"), side=2, line=2, outer=TRUE, cex=3)
 	mtext("Day of year", side=1, line=2, outer=TRUE, cex=3)#this provides the y-axis title. 
 	#Note it is outside of the ddply() so that it is only plotted once.
 dev.off()#this closes the "device" and 
+}
+
+plot_fit(dat = auc, sp = "chum")
+plot_fit(dat = auc, sp = "coho")
+plot_fit(dat = auc, sp = "pink")
 
 fig.name<-"/Users/doug/Documents/Instream/Projects/BRGMON-3 - Bridge River/Figures/Bridge Chinook - Abundance by Year - Zeros Added.png"
 png(fig.name, width=1200, height=1200)
