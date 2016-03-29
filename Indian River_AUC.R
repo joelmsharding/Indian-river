@@ -72,8 +72,11 @@ day<-ddply(d2, c("year","species"), function(x){
 })
 
 #Cbind julian day into salmon count dataset
-auc<- cbind(d2,day$day)
-names(auc)[[9]]<- c("day")
+fish_dat<- cbind(d2,day$day)
+names(fish_dat)[[9]]<- c("day")
+
+#Format date
+fish_dat$date <- as.Date(fish_dat$date, format = "%Y-%m-%d")
 
 #########################################################################################################################
 #Apply the modeling from Millar et al 2012 CJFAS - Simple estimators of salmonid escapement and its variance using a new area-under-the-curve method.
@@ -85,7 +88,7 @@ names(auc)[[9]]<- c("day")
 
 #Fit equation (8), and extract coefficients
 #beta0, beta1 and beta2 
-esc_dat<-ddply(auc, c("year", "species"), .progress = progress_text(char = "."), function(y) {
+esc_dat<-ddply(fish_dat, c("year", "species"), .progress = progress_text(char = "."), function(y) {
 g=glm(count~day+I(day^2), data=y, family=quasipoisson); g #subset(z, year==2005)
 x=coef(g)
 
@@ -95,18 +98,11 @@ x=coef(g)
 #These need to be agreed upon how to incorporate mean and uncertainty for sl and oe by IFR staff. 
 #By November 2014 we will have estimates of sl and oe for 3 years.
 #################################################################################################
-# I used the mean observer efficiency for all years so that they are comparable. This might not be the best way to do it.
-# Alternatively we could use the year specific observer efficiency. 
-# Either method should be fine since it won't change the estimates all that much, they are still going to be low.
-
-#start here to apply spp-specific oe and sl esitaimtes to each model
 
 #Apply equation (9) to obtain estimated fish-days 
 f = sqrt(-pi / x[3]) * exp(x[1] - x[2] ^ 2 / (4 * x[3]))
 
-# I used year specific information on oe and sl when available. 
-# 
-
+#Apply general OE and spp-specific SL estimates to each model
 oe<- mean_oe
 
 if(y$species[1]=="chum"){
@@ -147,56 +143,60 @@ esc_dat
 
 write.csv(x=esc_dat, file="~/Dropbox (Instream)/Projects/TWN Indian River/4 - Figures & Tables/escapement_summary.csv")
 
+#################
+#GOOD TO HERE!!!!
+#################
 
-auc$date <- as.POSIXct(as.character(auc$date), format = "%Y-%m-%d")
+#dat <- dplyr::filter(fish_dat, species == "chum")
+#sp<- "chum"
 
 plot_fit <- function(dat, sp){
+
+  xx<- dplyr::filter(dat, species == sp)
   
-  #auc_dat <- dplyr::filter(dat, species == sp)
-  auc_dat <- dplyr::filter(auc, species == "chum")
+  fig_name<-paste("~/Dropbox (Instream)/Projects/TWN Indian River/4 - Figures & Tables/ir_auc_model_fit_",sp, ".png")
+  png(fig_name, height=1200, width=1200)
+  par(mfrow=c(2,1), mar=c(1.5,1.5,1,1.5), oma=c(4,4,0,0), cex=1.5)
   
-#fig_name<-paste("~/Dropbox (Instream)/Projects/TWN Indian River/4 - Figures & Tables/ir_auc_model_fit", sp, ".png")
-#png(fig_name, height=1200, width=1200)
-quartz()
-par(mfrow=c(2,1), mar=c(1.5,1.5,1,1.5), oma=c(4,4,0,0), cex=1.5)
+  vv<- dplyr::arrange(xx,year,day)
+  d_ply(vv, c("year"), function(x){
+    g <- glm(count~day+I(day^2), data=x, family=quasipoisson); g; c<-coef(g)
+	  days<-seq(from=range(x$day)[1], to=range(x$day)[2])
+	  y1=c[1]+(c[2]*days)+c[3]*(days^2)
+	  y<-exp(y1) #from equation 8, Millar et al. 2012
+	  y_limit<-as.numeric(ifelse(max(x$count)>=max(y), max(x$count), max(y)))
+	  
+	  plot(x$count~x$jday, axes=FALSE, typ="b", xlab="", ylab="", pch=1, cex=1.5, lwd=2, col="blue",
+	     ylim=c(0, y_limit*1.2), xlim=c(min(x$jday), max(x$jday)))
 
+	  lines(y=y, x=days+min(x$jday), col="#00000050", lwd=2.5)
 
-
-d_ply(auc_dat, c("year"), function(x){
-	g <- glm(count~day+I(day^2), data=x, family=quasipoisson); g; c<-coef(g)
-	days<-seq(from=range(x$day)[1], to=range(x$day)[2])
-	y1=c[1]+(c[2]*days)+c[3]*(days^2)
-	y<-exp(y1) #from equation 8, Millar et al. 2012
-
-	y_limit<-as.numeric(ifelse(max(x$count)>=max(y), max(x$count), max(y)))
-
+	  r <- range(x$date)
+	  #r <- as.Date(range(auc$date))
 	
-	plot(x$count~x$jday, axes=FALSE, typ="b", xlab="", ylab="", pch=1, cex=2, lwd=2, col="blue",
-	     ylim=c(0, y_limit*1.2), xlim=c(min(auc_dat$jday), max(auc_dat$jday)))
-
-	lines(y=y, x=days+min(x$jday), col="#00000050", lwd=2.5)
-
+	  #axis.POSIXct(1, at = seq(r[1], r[2], by = "weeks"), format = "%b %d", cex.axis=1.25)
+	  #axis.Date(1, at = seq(r[1], r[2], by = "weeks"), cex.axis=1.25)
 	
-	r <- as.Date(range(auc_dat$date))
-	#axis.POSIXct(1, at = seq(r[1], r[2], by = "weeks"), format = "%b %d", cex.axis=1.25)
-	#axis.Date(1, at = seq(r[1], r[2], by = "weeks"), cex.axis=1.25)
+	  #axis(1, at = seq(min(x$jday), max(x$jday), by = 7), labels = seq(r[1], r[2], by = "weeks", format = "%b %d"), cex.axis=1.25)
+	  axis(1, x$date, format(x$date, "%b %d"), cex.axis = 0.7)
 	
-	axis(1, at = seq(min(auc_dat$jday), max(auc_dat$jday), by = 7), labels = seq(r[1], r[2], by = "weeks", format = "%b %d"), cex.axis=1.25)
-	
-	mtext(x$year[1], side=3, adj=0.02, line=-1, cex=1.5)
-	axis(side=2, las=1, cex.axis=1.25)
-	box()
-	})
+	  mtext(x$year[1], side=3, adj=0.02, line=-1, cex=1.5)
+	  axis(side=2, las=1, cex.axis=1.25)
+	  box()
+	  })
 
 	mtext(paste(sp, "spawner count"), side=2, line=2, outer=TRUE, cex=3)
-	mtext("Day of year", side=1, line=2, outer=TRUE, cex=3)#this provides the y-axis title. 
-	#Note it is outside of the ddply() so that it is only plotted once.
-dev.off()#this closes the "device" and 
+	mtext("Day of year", side=1, line=2, outer=TRUE, cex=3)#this provides the y-axis title.
+	
+  dev.off()#this closes the "device" and 
 }
 
-plot_fit(dat = auc, sp = "chum")
-plot_fit(dat = auc, sp = "coho")
-plot_fit(dat = auc, sp = "pink")
+plot_fit(fish_dat, "chum")
+plot_fit(fish_dat, "coho")
+plot_fit(fish_dat, "pink")
+
+
+
 
 fig.name<-"/Users/doug/Documents/Instream/Projects/BRGMON-3 - Bridge River/Figures/Bridge Chinook - Abundance by Year - Zeros Added.png"
 png(fig.name, width=1200, height=1200)
