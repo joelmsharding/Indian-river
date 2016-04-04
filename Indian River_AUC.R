@@ -9,8 +9,8 @@ library(msm)
 library(magrittr)
 
 #Import SL and OE values from literature
-oe<- read.csv(file="~/Dropbox (Instream)/Projects/TWN Indian River/Data/IFR Cleaned Data/Observer_Efficiency.csv",header=T, stringsAsFactor=T)
-sl<- read.csv(file="~/Dropbox (Instream)/Projects/TWN Indian River/Data/IFR Cleaned Data/Survey_Life.csv",header=T, stringsAsFactor=T)
+oe<- read.csv(file="~/Dropbox (Instream)/Projects/TWN Indian River/Data/IFR Cleaned Data/Observer_Efficiency.csv",header=T, stringsAsFactor=F)
+sl<- read.csv(file="~/Dropbox (Instream)/Projects/TWN Indian River/Data/IFR Cleaned Data/Survey_Life.csv",header=T, stringsAsFactor=F)
 
 #detach(package:plyr)
 
@@ -55,7 +55,7 @@ n_pisl<- nrow(pisl)
 se_pisl<- sd_pisl/sqrt(n_pisl)
 
 #Read in salmon count data
-d1<-read.csv(file="~/Dropbox (Instream)/Projects/TWN Indian River/Data/IFR Cleaned Data/ir_salmon_esc_coupled_2013_15.csv",header=T, stringsAsFactor=T)
+d1<-read.csv(file="~/Dropbox (Instream)/Projects/TWN Indian River/Data/IFR Cleaned Data/ir_salmon_esc_coupled_2013_15.csv",header=T, stringsAsFactor=F)
 
 #calculate julian days, must add 365 to any days that overlap Dec. 31 
 #(this is because some species are counted over the new year but are still techincally part of the previous years run)
@@ -76,7 +76,7 @@ fish_dat<- cbind(d2,day$day)
 names(fish_dat)[[9]]<- c("day")
 
 #Format date
-fish_dat$date <- as.Date(fish_dat$date, format = "%Y-%m-%d")
+#fish_dat$date <- as.Date(fish_dat$date, format = "%Y-%m-%d")
 
 #########################################################################################################################
 #Apply the modeling from Millar et al 2012 CJFAS - Simple estimators of salmonid escapement and its variance using a new area-under-the-curve method.
@@ -89,8 +89,8 @@ fish_dat$date <- as.Date(fish_dat$date, format = "%Y-%m-%d")
 #Fit equation (8), and extract coefficients
 #beta0, beta1 and beta2 
 esc_dat<-ddply(fish_dat, c("year", "species"), .progress = progress_text(char = "."), function(y) {
-g=glm(count~day+I(day^2), data=y, family=quasipoisson); g #subset(z, year==2005)
-x=coef(g)
+  g=glm(count~day+I(day^2), data=y, family=quasipoisson); g
+  x=coef(g)
 
 #Can use equation 8 to get predicted counts from model by applying the following equation y1=c[1]+(c[2]*days)+c[3]*(days^2); y<-exp(y1)
 #from equation 8, Millar et al. 2012
@@ -143,60 +143,74 @@ esc_dat
 
 write.csv(x=esc_dat, file="~/Dropbox (Instream)/Projects/TWN Indian River/4 - Figures & Tables/escapement_summary.csv")
 
-#################
-#GOOD TO HERE!!!!
-#################
-
-#dat <- dplyr::filter(fish_dat, species == "chum")
-#sp<- "chum"
+##################################################################
+#Function that creates plots based on model output and fish counts
+##################################################################
 
 plot_fit <- function(dat, sp){
-
+  #Select the species to plot
   xx<- dplyr::filter(dat, species == sp)
   
-  fig_name<-paste("~/Dropbox (Instream)/Projects/TWN Indian River/4 - Figures & Tables/ir_auc_model_fit_",sp, ".png")
-  png(fig_name, height=1200, width=1200)
-  par(mfrow=c(2,1), mar=c(1.5,1.5,1,1.5), oma=c(4,4,0,0), cex=1.5)
+  #Figure name will need to be changed based on desired file location
+  fig_name<-paste("~/Dropbox (Instream)/Projects/TWN Indian River/4 - Figures & Tables/ir_auc_model_fit_",sp,".png")
+  #Calculate number of plots based on number of years
+  plot_no<-length(unique(xx$year))
+  #Make height of plot based on number of years
+  ht<- ifelse(plot_no==3,1800,ifelse(plot_no==2,1200,600))
+  png(fig_name, height=ht, width=1500)
   
+  #par is dependant on number of plots (plot_no) above
+  par(mfrow=c(plot_no,1), mar=c(1.5,1.5,1,1.5), oma=c(4,5.2,0,0), cex=1.5)
+  
+  #Sort each data subet by day so plots properly
   vv<- dplyr::arrange(xx,year,day)
+  
   d_ply(vv, c("year"), function(x){
+    x$date <- as.POSIXct(as.character(x$date), format = "%Y-%m-%d")
     g <- glm(count~day+I(day^2), data=x, family=quasipoisson); g; c<-coef(g)
 	  days<-seq(from=range(x$day)[1], to=range(x$day)[2])
+	  #From equation 8, Millar et al. 2012
 	  y1=c[1]+(c[2]*days)+c[3]*(days^2)
-	  y<-exp(y1) #from equation 8, Millar et al. 2012
+	  y<-exp(y1)
 	  y_limit<-as.numeric(ifelse(max(x$count)>=max(y), max(x$count), max(y)))
 	  
-	  plot(x$count~x$jday, axes=FALSE, typ="b", xlab="", ylab="", pch=1, cex=1.5, lwd=2, col="blue",
-	     ylim=c(0, y_limit*1.2), xlim=c(min(x$jday), max(x$jday)))
+	  #Colour of plot dependant on species type, may have to add more species into ifelse statements
+	  sp_col<- ifelse(sp=="chum","blue",ifelse(sp=="coho","red",ifelse(sp=="pink","black","green")))
+	  
+	  plot(x$count~as.Date(x$date), axes=FALSE, typ="b", xlab="", ylab="", pch=1, cex=2.5, lwd=3, col=sp_col,
+	       ylim=c(0, y_limit*1.2), xlim=c(min(as.Date(x$date)), max(as.Date(x$date))))
+	  
+	  x_range<- seq(min(as.Date(x$date)), max(as.Date(x$date)), by = "days")
+	  
+	  #Plot AUC model line
+	  lines(y=y, x=x_range, col="#00000050", lwd=2.5)
+	  
+	  #Create polygon to shade area under curve
+	  yzero<- rep(0, length(y))
+	  polygon(c(x_range, rev(x_range)), c(y, rev(yzero)), col = "#00000030", border = FALSE)
+	  
+	  r <- as.Date(range(xx$date))
+	  axis.Date(1, at = seq(r[1], r[2], by = "weeks"), format = "%b %d", cex.axis = 1.35)
 
-	  lines(y=y, x=days+min(x$jday), col="#00000050", lwd=2.5)
-
-	  r <- range(x$date)
-	  #r <- as.Date(range(auc$date))
-	
-	  #axis.POSIXct(1, at = seq(r[1], r[2], by = "weeks"), format = "%b %d", cex.axis=1.25)
-	  #axis.Date(1, at = seq(r[1], r[2], by = "weeks"), cex.axis=1.25)
-	
-	  #axis(1, at = seq(min(x$jday), max(x$jday), by = 7), labels = seq(r[1], r[2], by = "weeks", format = "%b %d"), cex.axis=1.25)
-	  axis(1, x$date, format(x$date, "%b %d"), cex.axis = 0.7)
-	
-	  mtext(x$year[1], side=3, adj=0.02, line=-1, cex=1.5)
-	  axis(side=2, las=1, cex.axis=1.25)
+	  mtext(x$year[1], side=3, adj=0.02, line=-2, cex=2)
+	  myTicks = axTicks(2)
+	  axis(side=2, at = myTicks, labels = formatC(myTicks, format = 'd'), las=1, cex.axis=1.25)
 	  box()
 	  })
 
-	mtext(paste(sp, "spawner count"), side=2, line=2, outer=TRUE, cex=3)
-	mtext("Day of year", side=1, line=2, outer=TRUE, cex=3)#this provides the y-axis title.
+	mtext(paste(sp, "spawner count"), side=2, line=3.5, outer=TRUE, cex=2.5)
+	mtext("Date", side=1, line=2, outer=TRUE, cex=2.5) #this provides the y-axis title.
 	
-  dev.off()#this closes the "device" and 
+  dev.off()
 }
 
 plot_fit(fish_dat, "chum")
 plot_fit(fish_dat, "coho")
 plot_fit(fish_dat, "pink")
 
-
-
+##########################
+#Escapement estimate plots
+##########################
 
 fig.name<-"/Users/doug/Documents/Instream/Projects/BRGMON-3 - Bridge River/Figures/Bridge Chinook - Abundance by Year - Zeros Added.png"
 png(fig.name, width=1200, height=1200)
