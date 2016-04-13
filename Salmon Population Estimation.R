@@ -49,7 +49,7 @@ esc_dat<-ddply(fish_dat, c("year", "species"), .progress = progress_text(char = 
   #Apply general OE and spp-specific SL estimates to each model
   oe<- mean_oe
   
-  if(y$species[1]=="chum"){
+  if(y$species[1]=="Chum"){
     sl <- mean_chsl
     se_sl <- se_chsl
     e = f / (sl * oe)
@@ -57,7 +57,7 @@ esc_dat<-ddply(fish_dat, c("year", "species"), .progress = progress_text(char = 
     se_e=deltamethod(~x1/(x2*x3), mean=c(F,sl,oe), cov=diag(c(se_f,se_sl,se_oe))^2)
   }
   
-  if(y$species[1]=="coho"){
+  if(y$species[1]=="Coho"){
     sl <- mean_cosl
     se_sl <- se_cosl
     e = f / (sl * oe)
@@ -65,7 +65,7 @@ esc_dat<-ddply(fish_dat, c("year", "species"), .progress = progress_text(char = 
     se_e=deltamethod(~x1/(x2*x3), mean=c(F,sl,oe), cov=diag(c(se_f,se_sl,se_oe))^2)
   }
   
-  if(y$species[1]=="pink"){
+  if(y$species[1]=="Pink"){
     sl <- mean_pisl
     se_sl <- se_pisl
     e = f / (sl * oe)

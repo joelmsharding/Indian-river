@@ -16,7 +16,7 @@ plot_fit <- function(dat, sp){
   png(fig_name, height=ht, width=1500)
   
   #par is dependant on number of plots (plot_no) above
-  par(mfrow=c(plot_no,1), mar=c(1.5,1.5,1,1.5), oma=c(4,5.2,0,0), cex=1.5)
+  par(mfrow=c(plot_no,1), mar=c(1.5,1.5,1,1.5), oma=c(4,5.7,0,0), cex=1.5)
   
   #Sort each data subet by day so plots properly
   vv<- dplyr::arrange(xx,year,day)
@@ -31,7 +31,7 @@ plot_fit <- function(dat, sp){
     y_limit<-as.numeric(ifelse(max(x$count)>=max(y), max(x$count), max(y)))
     
     #Colour of plot dependant on species type, may have to add more species into ifelse statements
-    sp_col<- ifelse(sp=="chum","blue",ifelse(sp=="coho","red",ifelse(sp=="pink","black","green")))
+    sp_col<- ifelse(sp=="Chum","blue",ifelse(sp=="Coho","red",ifelse(sp=="Pink","black","green")))
     
     plot(x$count~as.Date(x$date), axes=FALSE, typ="b", xlab="", ylab="", pch=1, cex=2.5, lwd=3, col=sp_col,
          ylim=c(0, y_limit*1.2), xlim=c(min(as.Date(x$date)), max(as.Date(x$date))))
@@ -48,18 +48,18 @@ plot_fit <- function(dat, sp){
     r <- as.Date(range(xx$date))
     axis.Date(1, at = seq(r[1], r[2], by = "weeks"), format = "%b %d", cex.axis = 1.35)
     
-    mtext(x$year[1], side=3, adj=0.02, line=-2, cex=2)
+    mtext(x$year[1], side=3, adj=0.02, line=-2, cex=2.5)
     myTicks = axTicks(2)
     axis(side=2, at = myTicks, labels = formatC(myTicks, format = 'd'), las=1, cex.axis=1.25)
     box()
   })
   
-  mtext(paste(sp, "spawner count"), side=2, line=3.5, outer=TRUE, cex=2.5)
-  mtext("Date", side=1, line=2, outer=TRUE, cex=2.5) #this provides the y-axis title.
+  mtext(paste(sp, "Spawner Count"), side=2, line=4, outer=TRUE, cex=3)
+  mtext("Date", side=1, line=2, outer=TRUE, cex=3) #this provides the y-axis title.
   
   dev.off()
 }
 
-plot_fit(fish_dat, "chum")
-plot_fit(fish_dat, "coho")
-plot_fit(fish_dat, "pink")
+plot_fit(fish_dat, "Chum")
+plot_fit(fish_dat, "Coho")
+plot_fit(fish_dat, "Pink")
