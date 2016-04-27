@@ -57,15 +57,15 @@ spp_plot<- function(dat, spp, est1, est2, est3){
   
   #Add the legend.
   lx<- ifelse(spp=="Pink",yrs-2.5,yrs-1.75)
-  legend(min(xx$year)+lx, y_limit-50, c("IFR AUC Estimate with 95 CI","TWN AUC Estimate"), pch=c(16,15), pt.cex=1, cex=0.8, col=c(sp_col,"#00000060"), bty="n", xpd=NA)
+  legend(min(xx$year)+lx, y_limit-50, c("IFR GAUC Estimate with 95 CI","TWN TAUC Estimate"), pch=c(16,15), pt.cex=1, cex=0.8, col=c(sp_col,"#00000060"), bty="n", xpd=NA)
 
   
 dev.off()
 }
 
-spp_plot(esc_dat,"Pink",740775,NA,NA)
-spp_plot(esc_dat,"Coho",2454,4285,NA)
-spp_plot(esc_dat,"Chum",49835,10623,NA)
+spp_plot(esc_dat,"Pink",740775,2084040,NA)
+spp_plot(esc_dat,"Coho",2454,4285,2458)
+spp_plot(esc_dat,"Chum",49835,10623,17781)
 
 
 
